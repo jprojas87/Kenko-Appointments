@@ -17,7 +17,9 @@ def get_event_publisher() -> EventPublisher:
 
         return LogPublisher()
     if settings.event_publisher == "eventbridge":
-        raise RuntimeError("EVENT_PUBLISHER=eventbridge estará disponible desde la parte 18")
+        from app.events.eventbridge_publisher import EventBridgePublisher
+
+        return EventBridgePublisher()
     raise RuntimeError("EVENT_PUBLISHER debe ser log o eventbridge")
 
 
