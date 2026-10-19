@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -47,3 +48,32 @@ class MedicalCenterCatalogItem(CatalogModel):
     name: str
     location: str
     appointment_types: list[AppointmentType]
+
+
+class PhysicianSummary(CamelModel):
+    physician_id: UUID
+    name: str
+
+
+class MedicalCenterSummary(CamelModel):
+    medical_center_id: UUID
+    name: str
+    location: str
+
+
+class AppointmentResponse(CamelModel):
+    appointment_id: UUID
+    type: AppointmentType
+    date: date
+    weekday: str
+    start_time: str
+    end_time: str
+    physician: PhysicianSummary
+    medical_center: MedicalCenterSummary
+
+
+class PaginatedAppointments(CamelModel):
+    page: int
+    page_size: int
+    total: int
+    items: list[AppointmentResponse]
