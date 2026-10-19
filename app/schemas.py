@@ -77,3 +77,7 @@ class PaginatedAppointments(CamelModel):
     page_size: int
     total: int
     items: list[AppointmentResponse]
+
+
+class RescheduleRequest(CamelModel):
+    new_appointment_id: UUID

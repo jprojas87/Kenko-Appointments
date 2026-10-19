@@ -8,6 +8,7 @@ from app.errors import BusinessRuleError, ConflictError, NotFoundError
 from app.events.envelope import (
     AppointmentContext,
     appointment_cancelled_detail,
+    appointment_rescheduled_detail,
     appointment_scheduled_detail,
 )
 from app.events.publisher import EventPublisher, publish_safely
@@ -202,4 +203,86 @@ def cancel_appointment(
 
     database_session.commit()
     publish_safely(publisher, "AppointmentCancelled", detail)
+    return response
+
+
+def reschedule_appointment(
+    database_session: Session,
+    appointment_id: UUID,
+    new_appointment_id: UUID,
+    user_id: UUID,
+    email: str | None,
+    publisher: EventPublisher,
+) -> AppointmentResponse:
+    if appointment_id == new_appointment_id:
+        raise BusinessRuleError("La nueva cita debe ser diferente a la actual")
+
+    ordered_ids = sorted((appointment_id, new_appointment_id))
+    locked_appointments = database_session.scalars(
+        select(Appointment)
+        .where(Appointment.appointment_id.in_(ordered_ids))
+        .order_by(Appointment.appointment_id)
+        .with_for_update()
+    ).all()
+    appointments_by_id = {
+        appointment.appointment_id: appointment for appointment in locked_appointments
+    }
+    previous_appointment = appointments_by_id.get(appointment_id)
+    new_appointment = appointments_by_id.get(new_appointment_id)
+
+    if previous_appointment is None or previous_appointment.user_id != user_id:
+        raise NotFoundError("Cita no encontrada")
+    if new_appointment is None:
+        raise NotFoundError("Cita no encontrada")
+    if not has_minimum_notice(previous_appointment.date, previous_appointment.start_time):
+        raise BusinessRuleError("El reagendamiento requiere la anticipación mínima")
+    if new_appointment.user_id is not None:
+        raise ConflictError("cita no disponible")
+    if new_appointment.type != previous_appointment.type:
+        raise BusinessRuleError("La nueva cita debe ser del mismo tipo")
+    if not is_future(new_appointment.date, new_appointment.start_time):
+        raise BusinessRuleError("La cita debe ser futura")
+    if not is_within_max_days_ahead(new_appointment.date):
+        raise BusinessRuleError("La cita supera el máximo de días de antelación")
+
+    previous_context = _load_appointment_context(database_session, appointment_id)
+    new_context = _load_appointment_context(database_session, new_appointment_id)
+    if previous_context is None or new_context is None:
+        raise NotFoundError("Cita no encontrada")
+
+    detail = appointment_rescheduled_detail(
+        previous_context,
+        new_context,
+        user_id=user_id,
+        email=email,
+    )
+    response = _appointment_response(*new_context)
+    release_result = database_session.execute(
+        update(Appointment)
+        .where(
+            Appointment.appointment_id == appointment_id,
+            Appointment.user_id == user_id,
+        )
+        .values(user_id=None)
+        .execution_options(synchronize_session=False)
+    )
+    if release_result.rowcount == 0:
+        database_session.rollback()
+        raise NotFoundError("Cita no encontrada")
+
+    claim_result = database_session.execute(
+        update(Appointment)
+        .where(
+            Appointment.appointment_id == new_appointment_id,
+            Appointment.user_id.is_(None),
+        )
+        .values(user_id=user_id)
+        .execution_options(synchronize_session=False)
+    )
+    if claim_result.rowcount == 0:
+        database_session.rollback()
+        raise ConflictError("cita no disponible")
+
+    database_session.commit()
+    publish_safely(publisher, "AppointmentRescheduled", detail)
     return response
