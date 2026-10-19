@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from importlib import import_module
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -22,4 +23,5 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def create_tables() -> None:
+    import_module("app.models")
     Base.metadata.create_all(bind=engine)
