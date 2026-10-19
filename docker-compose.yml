@@ -1,3 +1,4 @@
+# Crear una vez la red compartida antes de levantar Compose: docker network create kenko-net
 services:
   appointments-db:
     image: postgres:16
@@ -9,6 +10,8 @@ services:
       - "5433:5432"
     volumes:
       - appointments-db-data:/var/lib/postgresql/data
+    networks:
+      - kenko-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U appointments -d appointments_db"]
       interval: 5s
@@ -16,5 +19,23 @@ services:
       retries: 5
       start_period: 5s
 
+  appointments-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    depends_on:
+      appointments-db:
+        condition: service_healthy
+    ports:
+      - "8002:8002"
+    networks:
+      - kenko-net
+
 volumes:
   appointments-db-data:
+
+networks:
+  kenko-net:
+    external: true
+    name: kenko-net
