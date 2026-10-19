@@ -1,4 +1,8 @@
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
+
+from app.models import AppointmentType
 
 
 def to_camel(value: str) -> str:
@@ -23,3 +27,23 @@ class ErrorResponse(CamelModel):
 class HealthResponse(CamelModel):
     status: str
     database_status: str
+
+
+class CatalogModel(CamelModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PhysicianCatalogItem(CatalogModel):
+    physician_id: UUID
+    first_name: str
+    last_name: str
+    specialty: AppointmentType
+    primary_med_center_id: UUID
+    secondary_med_center_id: UUID | None
+
+
+class MedicalCenterCatalogItem(CatalogModel):
+    medical_center_id: UUID
+    name: str
+    location: str
+    appointment_types: list[AppointmentType]

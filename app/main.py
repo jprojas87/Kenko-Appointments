@@ -7,6 +7,7 @@ from fastapi.openapi.utils import get_openapi
 from app.database import create_tables
 from app.errors import register_error_handlers
 from app.logging_config import add_correlation_id_middleware, configure_logging
+from app.routes.catalog import router as catalog_router
 from app.routes.health import router as health_router
 
 
@@ -22,6 +23,7 @@ add_correlation_id_middleware(app)
 register_error_handlers(app)
 
 api_router = APIRouter()
+api_router.include_router(catalog_router)
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(health_router)
 
