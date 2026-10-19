@@ -5,10 +5,14 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.errors import BusinessRuleError, ConflictError, NotFoundError
-from app.events.envelope import AppointmentContext, appointment_scheduled_detail
+from app.events.envelope import (
+    AppointmentContext,
+    appointment_cancelled_detail,
+    appointment_scheduled_detail,
+)
 from app.events.publisher import EventPublisher, publish_safely
 from app.models import Appointment, AppointmentType, MedicalCenter, Physician
-from app.rules import is_future, is_within_max_days_ahead
+from app.rules import has_minimum_notice, is_future, is_within_max_days_ahead
 from app.schemas import (
     AppointmentResponse,
     MedicalCenterSummary,
@@ -163,4 +167,39 @@ def schedule_appointment(
 
     database_session.commit()
     publish_safely(publisher, "AppointmentScheduled", detail)
+    return response
+
+
+def cancel_appointment(
+    database_session: Session,
+    appointment_id: UUID,
+    user_id: UUID,
+    email: str | None,
+    publisher: EventPublisher,
+) -> AppointmentResponse:
+    context = _load_appointment_context(database_session, appointment_id)
+    if context is None or context[0].user_id != user_id:
+        raise NotFoundError("Cita no encontrada")
+
+    appointment = context[0]
+    if not has_minimum_notice(appointment.date, appointment.start_time):
+        raise BusinessRuleError("La cancelación requiere la anticipación mínima")
+
+    detail = appointment_cancelled_detail(context, user_id=user_id, email=email)
+    response = _appointment_response(*context)
+    result = database_session.execute(
+        update(Appointment)
+        .where(
+            Appointment.appointment_id == appointment_id,
+            Appointment.user_id == user_id,
+        )
+        .values(user_id=None)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount == 0:
+        database_session.rollback()
+        raise NotFoundError("Cita no encontrada")
+
+    database_session.commit()
+    publish_safely(publisher, "AppointmentCancelled", detail)
     return response
