@@ -1,12 +1,14 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.errors import BusinessRuleError
+from app.errors import BusinessRuleError, ConflictError, NotFoundError
+from app.events.envelope import AppointmentContext, appointment_scheduled_detail
+from app.events.publisher import EventPublisher, publish_safely
 from app.models import Appointment, AppointmentType, MedicalCenter, Physician
-from app.rules import is_future
+from app.rules import is_future, is_within_max_days_ahead
 from app.schemas import (
     AppointmentResponse,
     MedicalCenterSummary,
@@ -104,3 +106,61 @@ def list_mine(
         for appointment, physician, medical_center in rows
         if include_past or is_future(appointment.date, appointment.start_time)
     ]
+
+
+def _load_appointment_context(
+    database_session: Session,
+    appointment_id: UUID,
+) -> AppointmentContext | None:
+    statement = (
+        select(Appointment, Physician, MedicalCenter)
+        .join(Physician, Physician.physician_id == Appointment.physician_id)
+        .join(MedicalCenter, MedicalCenter.medical_center_id == Appointment.medical_center_id)
+        .where(Appointment.appointment_id == appointment_id)
+    )
+    row = database_session.execute(statement).first()
+    return tuple(row) if row is not None else None
+
+
+def schedule_appointment(
+    database_session: Session,
+    appointment_id: UUID,
+    user_id: UUID,
+    email: str | None,
+    publisher: EventPublisher,
+) -> AppointmentResponse:
+    context = _load_appointment_context(database_session, appointment_id)
+    if context is None:
+        raise NotFoundError("Cita no encontrada")
+
+    appointment, _physician, _medical_center = context
+    if appointment.user_id is not None:
+        raise ConflictError("cita no disponible")
+    if not is_future(appointment.date, appointment.start_time):
+        raise BusinessRuleError("La cita debe ser futura")
+    if not is_within_max_days_ahead(appointment.date):
+        raise BusinessRuleError("La cita supera el máximo de días de antelación")
+
+    detail = appointment_scheduled_detail(context, user_id=user_id, email=email)
+    response = _appointment_response(*context)
+    result = database_session.execute(
+        update(Appointment)
+        .where(
+            Appointment.appointment_id == appointment_id,
+            Appointment.user_id.is_(None),
+        )
+        .values(user_id=user_id)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount == 0:
+        database_session.rollback()
+        exists = database_session.scalar(
+            select(Appointment.appointment_id).where(Appointment.appointment_id == appointment_id)
+        )
+        if exists is None:
+            raise NotFoundError("Cita no encontrada")
+        raise ConflictError("cita no disponible")
+
+    database_session.commit()
+    publish_safely(publisher, "AppointmentScheduled", detail)
+    return response

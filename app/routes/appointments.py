@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.events.publisher import EventPublisher, get_event_publisher
 from app.models import AppointmentType
 from app.schemas import AppointmentResponse, PaginatedAppointments
 from app.security import CurrentUser, current_user
-from app.services.appointment_service import list_available, list_mine
+from app.services.appointment_service import list_available, list_mine, schedule_appointment
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -50,4 +51,20 @@ def get_my_appointments(
         database_session,
         user_id=authenticated_user.user_id,
         include_past=include_past,
+    )
+
+
+@router.post("/{id}/schedule", response_model=AppointmentResponse)
+def post_schedule_appointment(
+    id: UUID,
+    database_session: Session = Depends(get_db),
+    authenticated_user: CurrentUser = Depends(current_user),
+    publisher: EventPublisher = Depends(get_event_publisher),
+) -> AppointmentResponse:
+    return schedule_appointment(
+        database_session=database_session,
+        appointment_id=id,
+        user_id=authenticated_user.user_id,
+        email=authenticated_user.email,
+        publisher=publisher,
     )
