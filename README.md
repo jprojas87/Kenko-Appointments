@@ -38,6 +38,26 @@ docker compose down -v  # elimina también el volumen y todos los datos locales
 
 La base de datos está disponible en el host en `localhost:5433`; dentro de Compose, la API se conecta a `appointments-db:5432`. La API escucha en el puerto `8002`.
 
+## Demostración local desde consola
+
+La demostración no requiere frontend ni levantar la API: la consola se conecta directamente a PostgreSQL. Desde la raíz del proyecto:
+
+```bash
+uv sync
+docker compose up -d appointments-db
+export DATABASE_URL='postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db'
+uv run python -m seeds.demo
+uv run python -m app.console
+```
+
+`seeds.demo` crea 20 citas futuras compartidas y es seguro volverlo a ejecutar. La consola muestra solo ese conjunto demo, aunque la base también tenga citas del seed estándar. `seeds.run` es la carga masiva existente y no es necesario para esta demostración. Al iniciar, la consola crea las tablas si hacen falta y migra `appointments.user_id` de UUID a texto, conservando los IDs existentes.
+
+Configura los usuarios en `.env` con `DEMO_USER_IDS=USR01,USR02`. Se aceptan dos o más IDs únicos, de cinco caracteres alfanuméricos; se normalizan a mayúsculas. En la consola elige el usuario, luego selecciona una opción: `1` agendar, `2` reagendar, `3` cancelar, `4` cambiar usuario o `0` salir. Las citas se seleccionan por el número de la lista. Todos los usuarios comparten los mismos espacios: una cita agendada aparece como ocupada para los demás.
+
+Se aplican las reglas de negocio existentes: reagendar requiere elegir una cita disponible del mismo tipo; cancelar y reagendar requieren al menos 24 horas de anticipación. La consola escribe los eventos localmente en los logs y no envía operaciones a EventBridge.
+
+Para inspeccionar los cambios en TablePlus, conecta a PostgreSQL con **Host** `localhost`, **Port** `5433`, **Database** `appointments_db`, **User** `appointments` y **Password** `appointments`. Consulta `public.appointments`: `user_id` es `NULL` en espacios disponibles y contiene el ID (por ejemplo, `USR01`) cuando está agendada. No uses `docker compose down -v` para detener la demostración: esa opción elimina el volumen y los datos locales.
+
 Para ejecutar la API desde WSL en el host, con PostgreSQL de Compose activo:
 
 ```bash
@@ -224,6 +244,7 @@ uv run ruff format --check .
 - [x] Correlation ID en logs, headers y metadata — `app/logging_config.py`, `app/events/envelope.py`.
 - [x] Docker multi-etapa no root, healthchecks y red externa documentada — `Dockerfile`, `docker-compose.yml`, esta guía.
 - [x] Seed idempotente de centros, médicos y citas — `seeds/run.py`; evidencia: ejecución doble con conteos estables.
+- [x] Seed demo de 20 citas y consola interactiva para usuarios locales — `seeds/demo.py`, `app/console.py`.
 - [x] Variables de entorno, `.gitignore` y `.dockerignore`; sin `.env` versionado — `.env.example`, `.gitignore`, `.dockerignore`.
 - [x] Guía de ejecución, endpoints, supuestos, pendientes, eventos e IAM — `README.md`, `docs/events.md`.
 - [x] Pruebas y Ruff — `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
