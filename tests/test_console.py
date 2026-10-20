@@ -80,3 +80,36 @@ def test_console_reschedules_then_cancels_selected_user_appointments(
     output = capsys.readouterr().out
     assert "Cita reagendada" in output
     assert "Cita cancelada" in output
+
+
+def test_users_share_slots_and_only_the_owner_can_manage_a_booking(
+    test_engine,
+    monkeypatch,
+    capsys,
+) -> None:
+    test_session_factory = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
+    run_demo_seed(test_session_factory)
+    monkeypatch.setattr(console, "create_tables", lambda: None)
+    monkeypatch.setattr(console, "SessionLocal", test_session_factory)
+    choices = iter(("1", "1", "1", "4", "2", "3", "1", "1", "0"))
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(choices))
+
+    console.main()
+
+    with Session(test_engine) as session:
+        appointments = [
+            session.get(Appointment, appointment_id) for appointment_id in demo_appointment_ids()
+        ]
+    assert appointments[0] is not None
+    assert appointments[0].user_id == "USR01"
+    assert sum(appointment.user_id is None for appointment in appointments if appointment) == 19
+    assert all(
+        appointment is None or appointment.user_id in {None, "USR01"}
+        for appointment in appointments
+    )
+
+    output = capsys.readouterr().out
+    assert "Usuario actual: USR02" in output
+    assert "OCUPADA" in output
+    assert "No hay citas que puedas seleccionar" in output
+    assert "Número de cita inválido" in output

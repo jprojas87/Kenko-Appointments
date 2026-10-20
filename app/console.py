@@ -235,14 +235,6 @@ def main() -> None:
             print("Sesión finalizada.")
             return
 
-        with SessionLocal() as database_session:
-            _show_appointments(database_session, user_id)
-
-        choice = input("\nEnter para elegir otro usuario o 'q' para salir: ").strip().lower()
-        if choice == "q":
-            print("Sesión finalizada.")
-            return
-
 
 if __name__ == "__main__":
     main()
