@@ -28,7 +28,8 @@ def build_demo_appointment_rows(now: datetime | None = None) -> list[dict[str, o
     physician_ids = {row[0]: seed_uuid("physician", row[0]) for row in PHYSICIANS}
     appointment_ids = demo_appointment_ids()
     rows: list[dict[str, object]] = []
-    day = current_time.date()
+    # Leave more than 24 hours so the demo can exercise cancel/reschedule rules.
+    day = current_time.date() + timedelta(days=1)
 
     while len(rows) < DEMO_APPOINTMENT_COUNT:
         day += timedelta(days=1)
