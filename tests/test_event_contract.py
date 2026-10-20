@@ -16,7 +16,7 @@ from app.events.publisher import get_event_publisher
 from app.main import app
 from app.models import Appointment, AppointmentType
 
-TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
+TEST_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000"
 CORRELATION_ID = "9f6c9f73-9200-4e60-a1b6-d9498f6c4819"
 
 

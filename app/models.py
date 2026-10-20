@@ -75,4 +75,4 @@ class Appointment(Base):
     medical_center_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("medical_centers.medical_center_id"), nullable=False
     )
-    user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(Text, nullable=True)

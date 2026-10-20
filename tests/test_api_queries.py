@@ -1,13 +1,12 @@
 from datetime import date, time, timedelta
 from urllib.parse import urlencode
-from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.models import AppointmentType
 
-TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
-OTHER_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001")
+TEST_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000"
+OTHER_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001"
 
 
 def auth_headers(token_factory, user_id=TEST_USER_ID, **token_options) -> dict[str, str]:
@@ -48,6 +47,15 @@ def test_jwt_missing_invalid_and_expired_are_unauthorized(
 
     assert [response.status_code for response in responses] == [401, 401, 401]
     assert all(response.json()["error"]["code"] == "unauthorized" for response in responses)
+
+
+def test_jwt_accepts_short_alphanumeric_user_ids(client: TestClient, token_factory) -> None:
+    response = client.get(
+        "/api/v1/appointments/available",
+        headers=auth_headers(token_factory, user_id="USR01"),
+    )
+
+    assert response.status_code == 200
 
 
 def test_catalog_endpoints_return_camel_case_and_specialties(

@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass
 from typing import Annotated
-from uuid import UUID
 
 import jwt
 from fastapi import Depends
@@ -17,7 +16,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 @dataclass(frozen=True, slots=True)
 class CurrentUser:
-    user_id: UUID
+    user_id: str
     email: str | None
 
 
@@ -51,20 +50,16 @@ def decode_access_token(token: str) -> CurrentUser:
         raise UnauthenticatedError("Token inválido o vencido") from exception
 
     subject = claims.get("sub")
-    if not isinstance(subject, str):
+    if not isinstance(subject, str) or not subject.strip():
         raise UnauthenticatedError("El token no contiene un userId válido")
-    try:
-        user_id = UUID(subject)
-    except ValueError as exception:
-        raise UnauthenticatedError("El token no contiene un userId válido") from exception
 
     email = claims.get("email")
     if email is not None and not isinstance(email, str):
         raise UnauthenticatedError("El token contiene un email inválido")
     if email is None:
-        logger.warning("El token no incluye el claim email; userId=%s", user_id)
+        logger.warning("El token no incluye el claim email; userId=%s", subject)
 
-    return CurrentUser(user_id=user_id, email=email)
+    return CurrentUser(user_id=subject, email=email)
 
 
 def current_user(

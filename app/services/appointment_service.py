@@ -95,7 +95,7 @@ def list_available(
 
 def list_mine(
     database_session: Session,
-    user_id: UUID,
+    user_id: str,
     include_past: bool = False,
 ) -> list[AppointmentResponse]:
     statement = (
@@ -130,7 +130,7 @@ def _load_appointment_context(
 def schedule_appointment(
     database_session: Session,
     appointment_id: UUID,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
@@ -174,7 +174,7 @@ def schedule_appointment(
 def cancel_appointment(
     database_session: Session,
     appointment_id: UUID,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
@@ -210,7 +210,7 @@ def reschedule_appointment(
     database_session: Session,
     appointment_id: UUID,
     new_appointment_id: UUID,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:

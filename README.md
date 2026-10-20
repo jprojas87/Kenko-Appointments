@@ -56,7 +56,7 @@ uv run python -m scripts.make_token \
   --minutes 60
 ```
 
-El token contiene `sub` (UUID), `email`, `iat` y `exp`. Para probar un token sin correo, agrega `--omit-email`; la API registra un warning y los eventos llevan `"email": null`. Para probar un token vencido, usa `--minutes -1`.
+El token contiene `sub` (ID de usuario), `email`, `iat` y `exp`. La API acepta UUID existentes y también IDs de texto como los usuarios locales configurados en `DEMO_USER_IDS`. Para probar un token sin correo, agrega `--omit-email`; la API registra un warning y los eventos llevan `"email": null`. Para probar un token vencido, usa `--minutes -1`.
 
 Con `JWT_ALGORITHM=RS256`, el validador usa `JWT_PUBLIC_KEY`; para firmar un token de prueba, pasa la clave privada PEM con `--private-key /ruta/privada.pem`.
 
@@ -161,6 +161,7 @@ La configuración se carga desde `.env` o el entorno del proceso. No versionar `
 | `JWT_PUBLIC_KEY` | vacío | Clave pública PEM para RS256. |
 | `JWT_ISSUER` | vacío | Emisor validado solo cuando está configurado. |
 | `JWT_AUDIENCE` | vacío | Audiencia validada solo cuando está configurada. |
+| `DEMO_USER_IDS` | `USR01,USR02` | Usuarios locales disponibles; IDs únicos de cinco caracteres alfanuméricos separados por comas. |
 | `MIN_HOURS_BEFORE_CANCEL_OR_RESCHEDULE` | `24` | Anticipación mínima para cancelar/reagendar. |
 | `MAX_DAYS_AHEAD_TO_SCHEDULE` | `90` | Antelación máxima para agendar. |
 | `EVENT_PUBLISHER` | `log` | `log` o `eventbridge`. |

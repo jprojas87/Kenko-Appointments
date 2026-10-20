@@ -55,7 +55,7 @@ def _appointment_data(context: AppointmentContext) -> dict[str, object]:
 
 def appointment_scheduled_detail(
     context: AppointmentContext,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
@@ -76,7 +76,7 @@ def appointment_scheduled_detail(
 def appointment_rescheduled_detail(
     previous_context: AppointmentContext,
     new_context: AppointmentContext,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
@@ -97,7 +97,7 @@ def appointment_rescheduled_detail(
 
 def appointment_cancelled_detail(
     context: AppointmentContext,
-    user_id: UUID,
+    user_id: str,
     email: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,

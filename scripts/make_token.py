@@ -1,7 +1,6 @@
 import argparse
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID
 
 import jwt
 
@@ -10,7 +9,7 @@ from app.config import settings
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Genera un JWT de prueba para desarrollo.")
-    parser.add_argument("--user-id", required=True, type=UUID)
+    parser.add_argument("--user-id", required=True, help="ID del usuario (UUID o texto).")
     parser.add_argument("--email", default="usuario@kenko.local")
     parser.add_argument("--minutes", type=int, default=60)
     parser.add_argument("--omit-email", action="store_true")

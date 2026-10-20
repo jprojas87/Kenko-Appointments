@@ -1,6 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
-from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -10,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import Appointment, AppointmentType
 
-TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
-OTHER_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001")
+TEST_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000"
+OTHER_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001"
 
 
 BOGOTA = ZoneInfo("America/Bogota")

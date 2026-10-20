@@ -1,7 +1,6 @@
 import os
 from collections.abc import Generator
 from datetime import UTC, date, datetime, time, timedelta
-from uuid import UUID
 
 import jwt
 import psycopg
@@ -23,8 +22,8 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://appointments:appointments@localhost:5433/appointments_test",
 )
-TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
-OTHER_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001")
+TEST_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000"
+OTHER_USER_ID = "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001"
 
 
 def _ensure_test_database(url: URL) -> None:
@@ -93,7 +92,7 @@ def client(test_engine, fake_publisher) -> Generator[TestClient, None, None]:
 @pytest.fixture
 def token_factory():
     def make_token(
-        user_id: UUID = TEST_USER_ID,
+        user_id: str = TEST_USER_ID,
         email: str | None = "usuario@correo.com",
         expires_in_minutes: int = 60,
         secret: str | None = None,
@@ -142,7 +141,7 @@ def records(db_session: Session):
         center: MedicalCenter,
         appointment_date: date,
         start_time: time,
-        user_id: UUID | None = None,
+        user_id: str | None = None,
         appointment_type: AppointmentType | None = None,
     ) -> Appointment:
         end_time = (datetime.combine(appointment_date, start_time) + timedelta(minutes=30)).time()
