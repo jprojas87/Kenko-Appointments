@@ -31,6 +31,7 @@ Comandos útiles:
 docker compose logs -f appointments-api
 docker compose exec appointments-api python -m seeds.run
 DATABASE_URL='postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db' uv run python -m seeds.demo
+DATABASE_URL='postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db' uv run python -m app.console
 docker compose down
 docker compose down -v  # elimina también el volumen y todos los datos locales
 ```

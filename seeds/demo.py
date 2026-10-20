@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.dialects.postgresql import insert
@@ -13,12 +14,19 @@ DEMO_APPOINTMENT_COUNT = 20
 DAILY_START_TIMES = (time(9, 0), time(10, 0), time(14, 0), time(15, 0))
 
 
+def demo_appointment_ids() -> tuple[UUID, ...]:
+    return tuple(
+        seed_uuid("demo_appointment", f"slot:{index:02}") for index in range(DEMO_APPOINTMENT_COUNT)
+    )
+
+
 def build_demo_appointment_rows(now: datetime | None = None) -> list[dict[str, object]]:
     current_time = now or datetime.now(BOGOTA)
     center_ids = {
         key: seed_uuid("medical_center", key) for key, _name, _location in MEDICAL_CENTERS
     }
     physician_ids = {row[0]: seed_uuid("physician", row[0]) for row in PHYSICIANS}
+    appointment_ids = demo_appointment_ids()
     rows: list[dict[str, object]] = []
     day = current_time.date()
 
@@ -33,7 +41,7 @@ def build_demo_appointment_rows(now: datetime | None = None) -> list[dict[str, o
             physician_key, _first, _last, specialty, center_key, _secondary = physician_row
             rows.append(
                 {
-                    "appointment_id": seed_uuid("demo_appointment", f"slot:{index:02}"),
+                    "appointment_id": appointment_ids[index],
                     "type": specialty,
                     "date": day,
                     "weekday": day.strftime("%A"),
