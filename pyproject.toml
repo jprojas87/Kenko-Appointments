@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings>=2.16.0",
     "pyjwt[crypto]>=2.15.1",
     "sqlalchemy>=2.1.5",
+    "uuid-utils>=1.1.0",
     "uvicorn[standard]>=0.54.0",
 ]
 

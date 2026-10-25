@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.authz import require_known_user
 from app.database import get_db
 from app.schemas import MedicalCenterCatalogItem, PhysicianCatalogItem
-from app.security import current_user
 from app.services.catalog_service import list_medical_centers, list_physicians
 
 router = APIRouter(
     prefix="/catalog",
     tags=["catalog"],
-    dependencies=[Depends(current_user)],
+    dependencies=[Depends(require_known_user)],
 )
 
 

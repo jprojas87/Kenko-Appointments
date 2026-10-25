@@ -1,21 +1,18 @@
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 from enum import StrEnum
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from sqlalchemy import Date, Enum, ForeignKey, Index, Text, Time, Uuid
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Text, Time, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.ids import generate_uuid
 
 
 class AppointmentType(StrEnum):
     GENERAL = "GENERAL"
     ODONTOLOGIA = "ODONTOLOGIA"
     PSICOLOGIA = "PSICOLOGIA"
-
-
-def generate_uuid() -> UUID:
-    return uuid4()
 
 
 appointment_type_enum = Enum(
@@ -76,3 +73,21 @@ class Appointment(Base):
         Uuid(as_uuid=True), ForeignKey("medical_centers.medical_center_id"), nullable=False
     )
     user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+
+
+class User(Base):
+    """Réplica mínima de profile: solo lo necesario para validar y notificar."""
+
+    __tablename__ = "users"
+
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )

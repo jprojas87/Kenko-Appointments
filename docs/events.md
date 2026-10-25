@@ -1,6 +1,9 @@
 # Contrato de eventos de Appointments
 
-Appointments publica eventos en EventBridge; no consume eventos, crea colas, DLQ ni reglas. Notifications crea su propia infraestructura SQS y consume el evento completo entregado por EventBridge.
+Appointments consume `ProfileCreated` desde SQS (cola `kenko-dev-appointments-profile`,
+regla `kenko-dev-profile-to-appointments`) con un worker separado que puebla la tabla
+`users`. Además publica eventos en EventBridge; no crea las colas/DLQ/reglas de
+Notifications, solo publica al bus existente.
 
 ## Bus, fuente y convenciones
 
@@ -9,13 +12,30 @@ Appointments publica eventos en EventBridge; no consume eventos, crea colas, DLQ
 - `DetailType`: `AppointmentScheduled`, `AppointmentRescheduled` o `AppointmentCancelled`.
 - `Detail`: JSON con `metadata` y `data`.
 - Todas las claves son camelCase. El usuario siempre se identifica como `userId`, nunca `patientId`.
-- `metadata.eventId` es UUID v4 nuevo por evento; `eventVersion` es la cadena `"1"`.
+- Todos los UUID (operativos, `metadata.eventId`, `correlationId` generado) son UUID v7.
+  `eventVersion` es la cadena `"1"`.
 - `occurredAt`, `scheduledAt`, `rescheduledAt` y `cancelledAt` son ISO-8601 UTC con sufijo `Z`.
 - `correlationId` toma `X-Correlation-Id` o se genera; el mismo ID aparece en logs y header de respuesta.
-- `email` viene del claim `email` del JWT. Si falta, el evento lo incluye como `null` y el servicio registra un warning.
+- `email` sale siempre de la tabla `users` (poblada desde `ProfileCreated`), nunca del JWT
+  y nunca es `null`. Si el usuario no existe en `users`, la operación se rechaza con `403`.
 - Los eventos llevan la cita completa; Notifications no necesita consultar Appointments.
 - `appointment.date` es `YYYY-MM-DD`; `startTime` y `endTime` son `HH:MM`, interpretados en `America/Bogota`.
 - Se entrega al menos una vez. Notifications debe deduplicar con `metadata.eventId`.
+
+## Consumo de ProfileCreated (worker separado)
+
+## Consumo de ProfileCreated (worker separado)
+
+- Cola: `kenko-dev-appointments-profile`.
+- DLQ: `kenko-dev-appointments-profile-dlq`.
+- Regla: `kenko-dev-profile-to-appointments`.
+- El servicio `appointments-worker` (`python -m app.workers.profile_consumer`) lee la cola
+  con long-polling de 20 s, extrae `detail.data.userId` (UUID v7) y
+  `detail.data.contact.email`, y hace upsert idempotente en `users`.
+- Solo se escucha `ProfileCreated` de `source=kenko.profile`; otros eventos se ignoran.
+- Se hace `DELETE` solo tras guardar en BD. Fallos transitorios se dejan para
+  reintento/DLQ; mensajes inválidos se descartan con log del `MessageId`.
+- Todo endpoint autenticado exige usuario conocido: `sub` sin fila en `users` → `403`.
 
 ## `AppointmentScheduled`
 
@@ -158,7 +178,7 @@ Appointments solo publica al bus existente. Notifications/equipo de infraestruct
 - Convención de colas: `{proyecto}-{entorno}-{consumidor}-{productor}[-dlq]`.
 - Cola: `kenko-dev-notifications-appointments`.
 - DLQ: `kenko-dev-notifications-appointments-dlq`.
-- Regla: `appointments-to-notifications`.
+- Regla: `kenko-dev-appointments-to-notifications`.
 - Patrón de evento:
 
 ```json
@@ -186,6 +206,6 @@ Recomendaciones para la infraestructura compartida:
 
 ## Publicación e IAM
 
-El productor envía `PutEvents` al bus con `Source=kenko.appointments`, `DetailType` del evento y `Detail` serializado como JSON. El permiso mínimo del rol de Appointments es `events:PutEvents` sobre el ARN del bus correspondiente. Appointments no necesita permisos SQS ni de administración de EventBridge.
+El productor envía `PutEvents` al bus con `Source=kenko.appointments`, `DetailType` del evento y `Detail` serializado como JSON. El permiso mínimo del rol de la API es `events:PutEvents` sobre el ARN del bus correspondiente. El rol del worker necesita además `sqs:ReceiveMessage`, `sqs:DeleteMessage` y `sqs:GetQueueAttributes` sobre la cola de profile (más `sqs:GetQueueUrl` para resolverla por nombre).
 
 El servicio confirma la transacción antes de publicar y hace hasta tres intentos. Si todos fallan, la operación queda confirmada y se registra el error con correlation ID, event ID y user ID; el evento puede perderse. Una mejora futura es Outbox.

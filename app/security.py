@@ -18,53 +18,51 @@ bearer_scheme = HTTPBearer(auto_error=False)
 @dataclass(frozen=True, slots=True)
 class CurrentUser:
     user_id: UUID
-    email: str | None
 
 
 def _verification_key() -> str:
-    if settings.jwt_algorithm == "HS256":
-        return settings.jwt_secret
-    if settings.jwt_algorithm == "RS256":
-        if not settings.jwt_public_key:
-            raise RuntimeError("JWT_PUBLIC_KEY es obligatorio cuando JWT_ALGORITHM=RS256")
-        return settings.jwt_public_key
-    raise RuntimeError("JWT_ALGORITHM debe ser HS256 o RS256")
+    if settings.jwt_algorithm != "HS256":
+        raise RuntimeError("JWT_ALGORITHM debe ser HS256")
+    if not settings.jwt_secret:
+        raise RuntimeError("JWT_SECRET es obligatorio")
+    return settings.jwt_secret
 
 
 def decode_access_token(token: str) -> CurrentUser:
-    algorithm = settings.jwt_algorithm
-    options = {
-        "require": ["exp"],
-        "verify_iss": bool(settings.jwt_issuer),
-        "verify_aud": bool(settings.jwt_audience),
-    }
+    if not settings.jwt_issuer or not settings.jwt_audience:
+        raise RuntimeError("JWT_ISSUER y JWT_AUDIENCE son obligatorios")
     try:
         claims = jwt.decode(
             token,
             _verification_key(),
-            algorithms=[algorithm],
-            issuer=settings.jwt_issuer or None,
-            audience=settings.jwt_audience or None,
-            options=options,
+            algorithms=["HS256"],
+            issuer=settings.jwt_issuer,
+            audience=settings.jwt_audience,
+            leeway=settings.jwt_leeway_seconds,
+            options={
+                "require": ["exp", "iss", "aud", "sub"],
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iss": True,
+                "verify_aud": True,
+            },
         )
     except InvalidTokenError as exception:
+        logger.info("JWT rechazado: %s", type(exception).__name__)
         raise UnauthenticatedError("Token inválido o vencido") from exception
 
     subject = claims.get("sub")
     if not isinstance(subject, str):
-        raise UnauthenticatedError("El token no contiene un userId válido")
+        raise UnauthenticatedError("Token inválido o vencido")
     try:
         user_id = UUID(subject)
     except ValueError as exception:
-        raise UnauthenticatedError("El token no contiene un userId válido") from exception
+        raise UnauthenticatedError("Token inválido o vencido") from exception
+    if user_id.version != 7:
+        logger.info("JWT con sub no v7 rechazado; userId=%s", user_id)
+        raise UnauthenticatedError("Token inválido o vencido")
 
-    email = claims.get("email")
-    if email is not None and not isinstance(email, str):
-        raise UnauthenticatedError("El token contiene un email inválido")
-    if email is None:
-        logger.warning("El token no incluye el claim email; userId=%s", user_id)
-
-    return CurrentUser(user_id=user_id, email=email)
+    return CurrentUser(user_id=user_id)
 
 
 def current_user(
@@ -74,5 +72,5 @@ def current_user(
     ],
 ) -> CurrentUser:
     if credentials is None:
-        raise UnauthenticatedError("Token Bearer requerido")
+        raise UnauthenticatedError("Token inválido o vencido")
     return decode_access_token(credentials.credentials)

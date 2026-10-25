@@ -22,7 +22,8 @@ def test_health_works_with_test_database(client: TestClient) -> None:
     assert response.headers["X-Correlation-Id"]
 
 
-def test_errors_use_uniform_schema(client: TestClient, token_factory) -> None:
+def test_errors_use_uniform_schema(client: TestClient, token_factory, records) -> None:
+    records["user"]()
     missing = client.get("/api/v1/no-such-route")
     invalid_query = client.get(
         "/api/v1/appointments/available?page=0",
@@ -43,7 +44,8 @@ def test_jwt_missing_invalid_and_expired_are_unauthorized(
     responses = (
         client.get(path),
         client.get(path, headers={"Authorization": "Bearer malformed"}),
-        client.get(path, headers=auth_headers(token_factory, expires_in_minutes=-1)),
+        # Expirado hace 5 min: fuera del leeway de reloj (120 s) → 401.
+        client.get(path, headers=auth_headers(token_factory, expires_in_minutes=-5)),
     )
 
     assert [response.status_code for response in responses] == [401, 401, 401]
@@ -55,6 +57,7 @@ def test_catalog_endpoints_return_camel_case_and_specialties(
     token_factory,
     records,
 ) -> None:
+    records["user"]()
     first_center = records["center"]("Sede primaria")
     second_center = records["center"]("Sede secundaria")
     general_physician = records["physician"](
@@ -94,6 +97,8 @@ def test_available_filters_pagination_order_and_future_unoccupied_only(
     token_factory,
     records,
 ) -> None:
+    records["user"]()
+    records["user"](OTHER_USER_ID, "otro@correo.com")
     center_general = records["center"]("Centro general")
     center_dental = records["center"]("Centro dental")
     general = records["physician"](center_general, AppointmentType.GENERAL)
@@ -165,7 +170,9 @@ def test_available_filters_pagination_order_and_future_unoccupied_only(
 def test_my_appointments_is_empty_for_user_without_bookings(
     client: TestClient,
     token_factory,
+    records,
 ) -> None:
+    records["user"]()
     response = client.get("/api/v1/appointments/me", headers=auth_headers(token_factory))
 
     assert response.status_code == 200

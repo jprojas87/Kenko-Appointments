@@ -16,14 +16,20 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_secret: str = "change-me-dev-only"
     jwt_public_key: str = ""
-    jwt_issuer: str = ""
-    jwt_audience: str = ""
+    jwt_issuer: str = "kenko-auth"
+    jwt_audience: str = "kenko-api"
+    jwt_leeway_seconds: int = 120
     min_hours_before_cancel_or_reschedule: int = 24
     max_days_ahead_to_schedule: int = 90
     event_publisher: str = "log"
     event_bus_name: str = "kenko-dev-bus"
     aws_region: str = "us-east-1"
     aws_endpoint_url: str = ""
+    profile_queue_name: str = "kenko-dev-appointments-profile"
+    profile_queue_url: str = ""
+    sqs_wait_time_seconds: int = 20
+    sqs_max_messages: int = 10
+    sqs_visibility_timeout: int = 30
 
 
 settings = Settings()

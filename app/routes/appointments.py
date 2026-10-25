@@ -4,11 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.authz import KnownUser, require_known_user
 from app.database import get_db
 from app.events.publisher import EventPublisher, get_event_publisher
 from app.models import AppointmentType
 from app.schemas import AppointmentResponse, PaginatedAppointments, RescheduleRequest
-from app.security import CurrentUser, current_user
 from app.services.appointment_service import (
     cancel_appointment,
     list_available,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/appointments", tags=["appointments"])
 @router.get(
     "/available",
     response_model=PaginatedAppointments,
-    dependencies=[Depends(current_user)],
+    dependencies=[Depends(require_known_user)],
 )
 def get_available_appointments(
     appointment_type: AppointmentType | None = Query(default=None, alias="type"),
@@ -51,7 +51,7 @@ def get_available_appointments(
 def get_my_appointments(
     include_past: bool = Query(default=False),
     database_session: Session = Depends(get_db),
-    authenticated_user: CurrentUser = Depends(current_user),
+    authenticated_user: KnownUser = Depends(require_known_user),
 ) -> list[AppointmentResponse]:
     return list_mine(
         database_session,
@@ -64,14 +64,13 @@ def get_my_appointments(
 def post_schedule_appointment(
     id: UUID,
     database_session: Session = Depends(get_db),
-    authenticated_user: CurrentUser = Depends(current_user),
+    authenticated_user: KnownUser = Depends(require_known_user),
     publisher: EventPublisher = Depends(get_event_publisher),
 ) -> AppointmentResponse:
     return schedule_appointment(
         database_session=database_session,
         appointment_id=id,
         user_id=authenticated_user.user_id,
-        email=authenticated_user.email,
         publisher=publisher,
     )
 
@@ -80,14 +79,13 @@ def post_schedule_appointment(
 def post_cancel_appointment(
     id: UUID,
     database_session: Session = Depends(get_db),
-    authenticated_user: CurrentUser = Depends(current_user),
+    authenticated_user: KnownUser = Depends(require_known_user),
     publisher: EventPublisher = Depends(get_event_publisher),
 ) -> AppointmentResponse:
     return cancel_appointment(
         database_session=database_session,
         appointment_id=id,
         user_id=authenticated_user.user_id,
-        email=authenticated_user.email,
         publisher=publisher,
     )
 
@@ -97,7 +95,7 @@ def post_reschedule_appointment(
     id: UUID,
     request_body: RescheduleRequest,
     database_session: Session = Depends(get_db),
-    authenticated_user: CurrentUser = Depends(current_user),
+    authenticated_user: KnownUser = Depends(require_known_user),
     publisher: EventPublisher = Depends(get_event_publisher),
 ) -> AppointmentResponse:
     return reschedule_appointment(
@@ -105,6 +103,5 @@ def post_reschedule_appointment(
         appointment_id=id,
         new_appointment_id=request_body.new_appointment_id,
         user_id=authenticated_user.user_id,
-        email=authenticated_user.email,
         publisher=publisher,
     )

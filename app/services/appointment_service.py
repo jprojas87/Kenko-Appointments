@@ -20,6 +20,7 @@ from app.schemas import (
     PaginatedAppointments,
     PhysicianSummary,
 )
+from app.services.user_service import require_user_email
 
 
 def _appointment_response(
@@ -131,9 +132,9 @@ def schedule_appointment(
     database_session: Session,
     appointment_id: UUID,
     user_id: UUID,
-    email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
+    email = require_user_email(database_session, user_id)
     context = _load_appointment_context(database_session, appointment_id)
     if context is None:
         raise NotFoundError("Cita no encontrada")
@@ -175,9 +176,9 @@ def cancel_appointment(
     database_session: Session,
     appointment_id: UUID,
     user_id: UUID,
-    email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
+    email = require_user_email(database_session, user_id)
     context = _load_appointment_context(database_session, appointment_id)
     if context is None or context[0].user_id != user_id:
         raise NotFoundError("Cita no encontrada")
@@ -211,9 +212,9 @@ def reschedule_appointment(
     appointment_id: UUID,
     new_appointment_id: UUID,
     user_id: UUID,
-    email: str | None,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
+    email = require_user_email(database_session, user_id)
     if appointment_id == new_appointment_id:
         raise BusinessRuleError("La nueva cita debe ser diferente a la actual")
 

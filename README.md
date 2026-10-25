@@ -1,6 +1,6 @@
 # Kenko Appointments
 
-Microservicio backend de citas de la sucursal virtual de Kenko. Permite consultar disponibilidad, agendar, cancelar y reagendar citas, consultar el catálogo médico y publicar eventos para Notifications. Appointments opera con su propia base PostgreSQL y no consume eventos ni llama a otros servicios.
+Microservicio backend de citas de la sucursal virtual de Kenko. Permite consultar disponibilidad, agendar, cancelar y reagendar citas, consultar el catálogo médico y publicar eventos para Notifications. Appointments opera con su propia base PostgreSQL, consume `ProfileCreated` de profile con un worker SQS separado y no llama a otros servicios por HTTP.
 
 ## Requisitos
 
@@ -28,7 +28,7 @@ La red externa `kenko-net` conecta Appointments con los otros microservicios. Se
 Comandos útiles:
 
 ```bash
-docker compose logs -f appointments-api
+docker compose logs -f appointments-api appointments-worker
 docker compose exec appointments-api python -m seeds.run
 docker compose down
 docker compose down -v  # elimina también el volumen y todos los datos locales
@@ -47,18 +47,15 @@ Swagger está disponible en <http://localhost:8002/docs>. Usa **Authorize** y pe
 
 ## Tokens de desarrollo
 
-Authentication es el emisor esperado en los entornos integrados. Para desarrollo local, genera un token firmado con la configuración local:
+Authentication es el emisor. Para desarrollo local, genera un token estilo kenko-auth firmado con la configuración local:
 
 ```bash
 uv run python -m scripts.make_token \
   --user-id 0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000 \
-  --email usuario@correo.com \
-  --minutes 60
+  --minutes 15
 ```
 
-El token contiene `sub` (UUID), `email`, `iat` y `exp`. Para probar un token sin correo, agrega `--omit-email`; la API registra un warning y los eventos llevan `"email": null`. Para probar un token vencido, usa `--minutes -1`.
-
-Con `JWT_ALGORITHM=RS256`, el validador usa `JWT_PUBLIC_KEY`; para firmar un token de prueba, pasa la clave privada PEM con `--private-key /ruta/privada.pem`.
+El token contiene `sub` (userId UUIDv7), `iss=kenko-auth`, `aud=kenko-api`, `iat`, `exp`, `jti` y `sid`. Appointments exige los cuatro (`alg==HS256`, firma, `iss`, `aud`, `exp`) y que `sub` sea UUID v7; sin eso responde `401` genérico. Para probar un token vencido, usa `--minutes -1`. El refresh token opaco de Auth nunca debe enviarse a Appointments.
 
 ## API REST
 
@@ -67,7 +64,7 @@ Todas las rutas, excepto `/health`, requieren `Authorization: Bearer <token>`. E
 En estos ejemplos, primero define un token y reemplaza los UUID de cita/centro/médico por los valores devueltos por la API:
 
 ```bash
-TOKEN="$(uv run python -m scripts.make_token --user-id 0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000 --email usuario@correo.com)"
+TOKEN="$(uv run python -m scripts.make_token --user-id 0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000)"
 ```
 
 ### Salud
@@ -117,7 +114,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   'http://localhost:8002/api/v1/appointments/UUID_CITA/cancel'
 ```
 
-Agendar requiere una cita disponible, futura y dentro de `MAX_DAYS_AHEAD_TO_SCHEDULE`. Cancelar y reagendar requieren que la cita actual pertenezca al usuario y que se cumpla `MIN_HOURS_BEFORE_CANCEL_OR_RESCHEDULE`. Reagendar exige que la cita nueva esté disponible, sea futura y tenga el mismo tipo.
+Agendar requiere una cita disponible, futura y dentro de `MAX_DAYS_AHEAD_TO_SCHEDULE`. Cancelar y reagendar requieren que la cita actual pertenezca al usuario y que se cumpla `MIN_HOURS_BEFORE_CANCEL_OR_RESCHEDULE`. Reagendar exige que la cita nueva esté disponible, sea futura y tenga el mismo tipo. Todo endpoint autenticado exige además que el usuario exista en la tabla `users` (poblada por el worker desde `ProfileCreated`); si no, responde `403`.
 
 ### Catálogos
 
@@ -156,23 +153,29 @@ La configuración se carga desde `.env` o el entorno del proceso. No versionar `
 | `DATABASE_URL` | `postgresql+psycopg://appointments:appointments@appointments-db:5432/appointments_db` | URL desde Docker. Desde el host usa `postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db`. |
 | `ENVIRONMENT` | `dev` | Entorno. |
 | `LOG_LEVEL` | `INFO` | Nivel de logs. |
-| `JWT_ALGORITHM` | `HS256` | Algoritmo aceptado: `HS256` o `RS256`. |
-| `JWT_SECRET` | `change-me-dev-only` | Clave HS256 local; reemplazar fuera de desarrollo. |
-| `JWT_PUBLIC_KEY` | vacío | Clave pública PEM para RS256. |
-| `JWT_ISSUER` | vacío | Emisor validado solo cuando está configurado. |
-| `JWT_AUDIENCE` | vacío | Audiencia validada solo cuando está configurada. |
+| `JWT_ALGORITHM` | `HS256` | Solo se acepta `HS256`. |
+| `JWT_SECRET` | `change-me-dev-only` | Clave HS256 compartida con kenko-auth; reemplazar fuera de desarrollo. |
+| `JWT_PUBLIC_KEY` | vacío | Sin uso (reservado para la futura migración a ES256/JWKS). |
+| `JWT_ISSUER` | `kenko-auth` | Emisor exigido al validar. |
+| `JWT_AUDIENCE` | `kenko-api` | Audiencia exigida al validar. |
+| `JWT_LEEWAY_SECONDS` | `120` | Tolerancia de reloj entre Auth y Appointments, aplicada a `exp`/`iat`. |
 | `MIN_HOURS_BEFORE_CANCEL_OR_RESCHEDULE` | `24` | Anticipación mínima para cancelar/reagendar. |
 | `MAX_DAYS_AHEAD_TO_SCHEDULE` | `90` | Antelación máxima para agendar. |
 | `EVENT_PUBLISHER` | `log` | `log` o `eventbridge`. |
 | `EVENT_BUS_NAME` | `kenko-dev-bus` | Bus de EventBridge. En producción: `kenko-prod-bus`. |
 | `AWS_REGION` | `us-east-1` | Región AWS. |
 | `AWS_ENDPOINT_URL` | vacío | Vacío usa AWS real; no se usan credenciales en el código. |
+| `PROFILE_QUEUE_NAME` | `kenko-dev-appointments-profile` | Cola SQS que lee el worker. |
+| `PROFILE_QUEUE_URL` | vacío | Si se fija, el worker la usa directo sin `GetQueueUrl`. |
+| `SQS_WAIT_TIME_SECONDS` | `20` | Long-polling del worker. |
+| `SQS_MAX_MESSAGES` | `10` | Máximo por `receive_message`. |
+| `SQS_VISIBILITY_TIMEOUT` | `30` | Visibilidad del mensaje en proceso. |
 
-Para AWS, configura credenciales mediante la cadena estándar de AWS (rol de ejecución/perfil/variables del entorno), fuera del repositorio. El permiso de mínimo privilegio es `events:PutEvents` sobre el bus requerido; no uses credenciales de administrador.
+Para AWS, configura credenciales mediante la cadena estándar de AWS (rol de ejecución/perfil/variables del entorno), fuera del repositorio. Permisos mínimos: la API necesita `events:PutEvents` sobre el bus; el worker necesita `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` sobre `kenko-dev-appointments-profile` (más `sqs:GetQueueUrl` si no se fija `PROFILE_QUEUE_URL`); no uses credenciales de administrador.
 
-## Eventos y limitación de publicación
+## Eventos y worker de profile
 
-Appointments publica únicamente al bus de EventBridge; no crea colas, DLQ ni reglas. `EVENT_PUBLISHER=log` es el valor predeterminado y permite desarrollar sin AWS; `eventbridge` activa el publicador boto3. EventBridge usa `Source=kenko.appointments`, `DetailType` PascalCase y el detalle `metadata` + `data`. El contrato, ejemplos completos y recomendaciones para Notifications están en [`docs/events.md`](docs/events.md).
+Appointments publica únicamente al bus de EventBridge (`kenko-dev-bus` en dev) y consume `ProfileCreated` con el servicio separado `appointments-worker` (`python -m app.workers.profile_consumer`), que puebla la tabla `users` con `userId` + `email`. `EVENT_PUBLISHER=log` es el valor predeterminado y permite desarrollar sin AWS; `eventbridge` activa el publicador boto3. EventBridge usa `Source=kenko.appointments`, `DetailType` PascalCase y el detalle `metadata` + `data`. El `email` de los eventos sale siempre de `users`, nunca del JWT ni como `null`. El contrato, ejemplos completos e infraestructura están en [`docs/events.md`](docs/events.md).
 
 La publicación sucede después del `commit`, con hasta tres intentos. Si el commit funciona y la publicación falla, la operación de negocio permanece confirmada, pero el evento se pierde. La mejora futura para cerrar esa ventana es el patrón Outbox.
 
@@ -194,27 +197,28 @@ uv run ruff format --check .
 - `appointmentTypes` de cada centro deriva de médicos en su sede principal/secundaria.
 - `page` empieza en 1, `page_size` predeterminado es 20; `/me` usa `include_past=false` por defecto.
 - `date_from` posterior a `date_to` produce `422`.
-- El seed usa UUID v5 deterministas para que sea idempotente; los UUID operativos usan `uuid4`.
-- Para generar tokens RS256 se requiere la clave privada PEM mediante `--private-key`; el servicio valida con `JWT_PUBLIC_KEY`.
-- PyJWT usa su extra oficial `crypto` para habilitar la validación RS256, que requiere el backend criptográfico de PyJWT.
-- El claim `email` puede faltar: se registra warning y se publica como `null` sin consultar otros servicios.
+- El seed usa UUID v5 deterministas para que sea idempotente; los UUID operativos usan v7.
+- Todo endpoint autenticado con `sub` desconocido (sin `ProfileCreated` previo) responde `403`.
+- El `email` de los eventos sale de `users`; nunca es `null`.
+- Los UUID entrantes (`sub`, `userId` de profile) deben ser v7; si no, se rechazan.
 
 ## Pendientes
 
-- [ ] Confirmar con el equipo EventBridge + SQS frente a HTTP interno. La implementación actual sigue la decisión EventBridge + SQS.
-- [ ] Confirmar con Authentication los claims `sub`, `email`, `role` y el algoritmo definitivo. Es crítico que incluya `email`.
+- [x] EventBridge + SQS como transporte asíncrono (publicación + worker de profile).
+- [x] Claims de Auth (`sub` v7, `iss`, `aud`, `alg` HS256); el `email` llega vía `ProfileCreated`, no en el token.
 - [ ] Confirmar quién crea bus, colas y reglas; se recomienda un repositorio compartido `kenko-infra`.
-- [ ] Confirmar cómo Notifications obtiene el correo; en esta versión llega en el evento como `email`.
+- [x] Notifications recibe `userId` + `email` (siempre presente) en el evento.
 - [ ] Acordar el formato común de errores y el contrato de `X-Correlation-Id`.
-- [ ] Confirmar si los servicios migrarán a UUID v7; Appointments usa UUID v4 fuera de los IDs deterministas del seed.
+- [x] UUID v7 global (solo lo nuevo; IDs v4 históricos se conservan).
 
 ## Checklist final de entrega
 
 - [x] Stack de la sección 3 y restricciones de la sección 4 — `pyproject.toml`, `Dockerfile`; sin Alembic, LocalStack, colas propias ni tecnologías prohibidas.
-- [x] Tres tablas, enums, relaciones, `user_id` sin FK e índices — `app/models.py`; evidencia: `docker compose exec appointments-db psql ... '\d appointments'`.
+- [x] Cuatro tablas (`medical_centers`, `physicians`, `appointments`, `users`), enums, relaciones, `user_id` sin FK e índices — `app/models.py`; evidencia: `docker compose exec appointments-db psql ... '\d appointments'`.
 - [x] Endpoints de citas, consultas, catálogos y health — `app/routes/appointments.py`, `app/routes/catalog.py`, `app/routes/health.py`.
 - [x] Doble reserva protegida por `UPDATE` condicional y reagendamiento con bloqueo ordenado — `app/services/appointment_service.py`.
-- [x] JWT, `sub` como `userId`, email opcional y script de tokens — `app/security.py`, `scripts/make_token.py`.
+- [x] JWT HS256 con `sub` v7 como `userId`, `iss`/`aud` exigidos y script de tokens — `app/security.py`, `scripts/make_token.py`.
+- [x] Worker SQS separado que ingiere `ProfileCreated` a `users` (upsert idempotente) — `app/workers/profile_consumer.py`, `app/services/profile_ingest.py`.
 - [x] Tres eventos con contrato camelCase, `userId`, `email` y timestamps UTC — `app/events/envelope.py`, `tests/test_event_contract.py`, `docs/events.md`.
 - [x] Publicación tras commit, reintentos, control de `FailedEntryCount`, tamaño y timeouts — `app/services/appointment_service.py`, `app/events/publisher.py`, `app/events/eventbridge_publisher.py`.
 - [x] Publicadores intercambiables `log`, `eventbridge` y fake; `log` predeterminado — `app/events/`, `.env.example`.

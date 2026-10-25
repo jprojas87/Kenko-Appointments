@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from app.ids import new_event_id
 from app.logging_config import get_correlation_id
 from app.models import Appointment, MedicalCenter, Physician
 
@@ -16,7 +17,7 @@ def _utc_timestamp(value: datetime | None = None) -> str:
 
 
 def _correlation_id(value: str | None = None) -> str:
-    return value or get_correlation_id() or str(uuid4())
+    return value or get_correlation_id() or str(new_event_id())
 
 
 def _metadata(
@@ -25,7 +26,7 @@ def _metadata(
     event_id: UUID | None,
 ) -> dict[str, str]:
     return {
-        "eventId": str(event_id or uuid4()),
+        "eventId": str(event_id or new_event_id()),
         "eventVersion": "1",
         "occurredAt": occurred_at,
         "correlationId": _correlation_id(correlation_id),
@@ -56,7 +57,7 @@ def _appointment_data(context: AppointmentContext) -> dict[str, object]:
 def appointment_scheduled_detail(
     context: AppointmentContext,
     user_id: UUID,
-    email: str | None,
+    email: str,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,
@@ -77,7 +78,7 @@ def appointment_rescheduled_detail(
     previous_context: AppointmentContext,
     new_context: AppointmentContext,
     user_id: UUID,
-    email: str | None,
+    email: str,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,
@@ -98,7 +99,7 @@ def appointment_rescheduled_detail(
 def appointment_cancelled_detail(
     context: AppointmentContext,
     user_id: UUID,
-    email: str | None,
+    email: str,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,

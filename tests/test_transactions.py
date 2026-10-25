@@ -38,6 +38,7 @@ def test_only_one_concurrent_schedule_succeeds(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"](f"Centro concurrencia {round_number}")
     physician = records["physician"](center)
     appointment = records["appointment"](
@@ -68,6 +69,8 @@ def test_reschedule_is_atomic_and_publishes_once(
     db_session: Session,
     fake_publisher,
 ) -> None:
+    records["user"]()
+    records["user"](OTHER_USER_ID, "otro@correo.com")
     center = records["center"]("Centro reagendamiento")
     physician = records["physician"](center)
     previous = records["appointment"](
@@ -129,6 +132,7 @@ def test_cancel_own_appointment_publishes_once_and_returns_to_pool(
     db_session: Session,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Centro cancelación")
     physician = records["physician"](center)
     appointment = records["appointment"](
@@ -162,6 +166,8 @@ def test_foreign_appointments_are_hidden_on_cancel_and_reschedule(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
+    records["user"](OTHER_USER_ID, "otro@correo.com")
     center = records["center"]("Centro cita ajena")
     physician = records["physician"](center)
     foreign = records["appointment"](
@@ -199,6 +205,7 @@ def test_past_and_beyond_horizon_scheduling_are_rejected(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Centro reglas agenda")
     physician = records["physician"](center)
     past = records["appointment"](
@@ -235,6 +242,7 @@ def test_minimum_notice_and_reschedule_type_are_enforced(
     db_session: Session,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Centro anticipación")
     general = records["physician"](center, AppointmentType.GENERAL)
     dental = records["physician"](center, AppointmentType.ODONTOLOGIA)

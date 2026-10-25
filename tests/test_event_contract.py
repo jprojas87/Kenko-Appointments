@@ -1,5 +1,4 @@
 import json
-import logging
 import re
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
@@ -17,6 +16,7 @@ from app.main import app
 from app.models import Appointment, AppointmentType
 
 TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
+TEST_USER_EMAIL = "usuario@correo.com"
 CORRELATION_ID = "9f6c9f73-9200-4e60-a1b6-d9498f6c4819"
 
 
@@ -73,13 +73,13 @@ def _assert_event_contract(
     assert set(detail) == {"metadata", "data"}
     metadata = detail["metadata"]
     assert set(metadata) == {"eventId", "eventVersion", "occurredAt", "correlationId"}
-    assert UUID(metadata["eventId"]).version == 4
+    assert UUID(metadata["eventId"]).version == 7
     assert metadata["eventVersion"] == "1"
     _assert_timestamp(metadata["occurredAt"])
     assert metadata["correlationId"] == correlation_id
     data = detail["data"]
     assert data["userId"] == str(TEST_USER_ID)
-    UUID(data["userId"])
+    assert UUID(data["userId"]).version == 7
     assert "email" in data and data["email"] == email
     assert data[timestamp_key] == metadata["occurredAt"]
     _assert_timestamp(data[timestamp_key])
@@ -105,6 +105,7 @@ def test_scheduled_event_matches_contract(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Sede evento agendado")
     physician = records["physician"](center, AppointmentType.GENERAL)
     appointment = records["appointment"](
@@ -125,7 +126,7 @@ def test_scheduled_event_matches_contract(
         fake_publisher.events[0],
         "AppointmentScheduled",
         "scheduledAt",
-        "usuario@correo.com",
+        TEST_USER_EMAIL,
     )
 
 
@@ -135,6 +136,7 @@ def test_cancelled_event_matches_contract(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Sede evento cancelado")
     physician = records["physician"](center)
     appointment = records["appointment"](
@@ -156,7 +158,7 @@ def test_cancelled_event_matches_contract(
         fake_publisher.events[0],
         "AppointmentCancelled",
         "cancelledAt",
-        "usuario@correo.com",
+        TEST_USER_EMAIL,
     )
 
 
@@ -166,6 +168,7 @@ def test_rescheduled_event_matches_contract(
     records,
     fake_publisher,
 ) -> None:
+    records["user"]()
     center = records["center"]("Sede evento reagendado")
     physician = records["physician"](center, AppointmentType.ODONTOLOGIA)
     previous = records["appointment"](
@@ -194,18 +197,18 @@ def test_rescheduled_event_matches_contract(
         fake_publisher.events[0],
         "AppointmentRescheduled",
         "rescheduledAt",
-        "usuario@correo.com",
+        TEST_USER_EMAIL,
     )
 
 
-def test_missing_email_is_null_and_warning_is_recorded(
+def test_email_comes_from_users_table_not_token(
     client: TestClient,
     token_factory,
     records,
     fake_publisher,
-    caplog,
 ) -> None:
-    center = records["center"]("Sede evento sin correo")
+    records["user"](email="desde-profile@correo.com")
+    center = records["center"]("Sede email profile")
     physician = records["physician"](center)
     appointment = records["appointment"](
         physician,
@@ -214,20 +217,56 @@ def test_missing_email_is_null_and_warning_is_recorded(
         time(9, 0),
     )
 
-    with caplog.at_level(logging.WARNING, logger="app.security"):
-        response = client.post(
-            f"/api/v1/appointments/{appointment.appointment_id}/schedule",
-            headers=_headers(token_factory(email=None)),
-        )
+    response = client.post(
+        f"/api/v1/appointments/{appointment.appointment_id}/schedule",
+        headers=_headers(token_factory()),
+    )
 
     assert response.status_code == 200
     _assert_event_contract(
         fake_publisher.events[0],
         "AppointmentScheduled",
         "scheduledAt",
-        None,
+        "desde-profile@correo.com",
     )
-    assert "no incluye el claim email" in caplog.text
+
+
+def test_unknown_user_is_forbidden_on_schedule(
+    client: TestClient,
+    token_factory,
+    records,
+    fake_publisher,
+) -> None:
+    center = records["center"]("Sede usuario desconocido")
+    physician = records["physician"](center)
+    appointment = records["appointment"](
+        physician,
+        center,
+        date.today() + timedelta(days=3),
+        time(9, 0),
+    )
+
+    response = client.post(
+        f"/api/v1/appointments/{appointment.appointment_id}/schedule",
+        headers=_headers(token_factory()),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
+    assert fake_publisher.events == []
+
+
+def test_unknown_user_is_forbidden_on_reads(
+    client: TestClient,
+    token_factory,
+) -> None:
+    for path in (
+        "/api/v1/appointments/available",
+        "/api/v1/appointments/me",
+        "/api/v1/catalog/physicians",
+    ):
+        response = client.get(path, headers=_headers(token_factory()))
+        assert response.status_code == 403
 
 
 def test_publish_failure_does_not_undo_confirmed_schedule(
@@ -237,6 +276,7 @@ def test_publish_failure_does_not_undo_confirmed_schedule(
     db_session: Session,
     caplog,
 ) -> None:
+    records["user"]()
     center = records["center"]("Sede publicador caído")
     physician = records["physician"](center)
     appointment = records["appointment"](
@@ -256,6 +296,8 @@ def test_publish_failure_does_not_undo_confirmed_schedule(
     failing_publisher = FailingPublisher()
     app.dependency_overrides[get_event_publisher] = lambda: failing_publisher
     token = token_factory()
+
+    import logging
 
     with caplog.at_level(logging.ERROR, logger="app.events.publisher"):
         response = client.post(

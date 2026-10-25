@@ -11,13 +11,14 @@ from psycopg import sql
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.orm import Session
+from uuid_utils import uuid7
 
 from app.config import settings
 from app.database import Base, get_db
 from app.events.fake_publisher import FakePublisher
 from app.events.publisher import get_event_publisher
 from app.main import app
-from app.models import Appointment, AppointmentType, MedicalCenter, Physician
+from app.models import Appointment, AppointmentType, MedicalCenter, Physician, User
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -25,6 +26,7 @@ TEST_DATABASE_URL = os.environ.get(
 )
 TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
 OTHER_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8001")
+TEST_USER_EMAIL = "usuario@correo.com"
 
 
 def _ensure_test_database(url: URL) -> None:
@@ -94,18 +96,21 @@ def client(test_engine, fake_publisher) -> Generator[TestClient, None, None]:
 def token_factory():
     def make_token(
         user_id: UUID = TEST_USER_ID,
-        email: str | None = "usuario@correo.com",
-        expires_in_minutes: int = 60,
+        expires_in_minutes: int = 15,
         secret: str | None = None,
+        issuer: str | None = None,
+        audience: str | None = None,
     ) -> str:
         now = datetime.now(UTC)
         claims: dict[str, str | datetime] = {
             "sub": str(user_id),
+            "iss": issuer or settings.jwt_issuer or "kenko-auth",
+            "aud": audience or settings.jwt_audience or "kenko-api",
             "iat": now,
             "exp": now + timedelta(minutes=expires_in_minutes),
+            "jti": str(uuid7()),
+            "sid": str(uuid7()),
         }
-        if email is not None:
-            claims["email"] = email
         return jwt.encode(claims, secret or settings.jwt_secret, algorithm="HS256")
 
     return make_token
@@ -113,6 +118,12 @@ def token_factory():
 
 @pytest.fixture
 def records(db_session: Session):
+    def make_user(user_id: UUID = TEST_USER_ID, email: str = TEST_USER_EMAIL) -> User:
+        user = User(user_id=user_id, email=email)
+        db_session.add(user)
+        db_session.commit()
+        return user
+
     def make_center(name: str = "Centro de prueba") -> MedicalCenter:
         center = MedicalCenter(name=name, location="Calle de prueba, Bogotá")
         db_session.add(center)
@@ -161,6 +172,7 @@ def records(db_session: Session):
         return appointment
 
     return {
+        "user": make_user,
         "center": make_center,
         "physician": make_physician,
         "appointment": make_appointment,
