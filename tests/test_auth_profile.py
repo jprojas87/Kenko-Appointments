@@ -12,7 +12,11 @@ from app.services.profile_ingest import parse_profile_created, upsert_user
 TEST_USER_ID = UUID("0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000")
 
 
-def _profile_event(user_id: str = str(TEST_USER_ID), email: str = "maria.gomez@example.com") -> str:
+def _profile_event(
+    user_id: str = str(TEST_USER_ID),
+    email: str = "maria.gomez@example.com",
+    first_name: str = "Maria Fernanda",
+) -> str:
     return json.dumps(
         {
             "source": "kenko.profile",
@@ -27,7 +31,7 @@ def _profile_event(user_id: str = str(TEST_USER_ID), email: str = "maria.gomez@e
                 "data": {
                     "userId": user_id,
                     "document": {"type": "CC", "number": "1020304050"},
-                    "person": {"firstName": "Maria Fernanda", "lastName": "Gomez Rojas"},
+                    "person": {"firstName": first_name, "lastName": "Gomez Rojas"},
                     "contact": {"email": email, "phone": "+573001234567"},
                     "address": {"line": "Cra 15 # 93-60", "city": "Bogota"},
                     "createdAt": "2026-10-13T20:15:31Z",
@@ -38,9 +42,11 @@ def _profile_event(user_id: str = str(TEST_USER_ID), email: str = "maria.gomez@e
 
 
 def test_parse_profile_created_ok() -> None:
-    user_id, email = parse_profile_created(_profile_event())
+    user_id, email, first_name, last_name = parse_profile_created(_profile_event())
     assert user_id == TEST_USER_ID
     assert email == "maria.gomez@example.com"
+    assert first_name == "Maria Fernanda"
+    assert last_name == "Gomez Rojas"
 
 
 def test_parse_ignores_other_sources() -> None:
@@ -58,13 +64,20 @@ def test_parse_rejects_non_v7_user_id() -> None:
         parse_profile_created(_profile_event(user_id="b6e7cfd2-4f84-4b65-8d63-0ef9ebd76784"))
 
 
+def test_parse_rejects_missing_first_name() -> None:
+    with pytest.raises(ValueError, match="firstName"):
+        parse_profile_created(_profile_event(first_name="   "))
+
+
 def test_upsert_is_idempotent(db_session, records) -> None:
-    first = upsert_user(db_session, TEST_USER_ID, "a@correo.com")
-    second = upsert_user(db_session, TEST_USER_ID, "a@correo.com")
+    first = upsert_user(db_session, TEST_USER_ID, "a@correo.com", "Ana", "Perez")
+    second = upsert_user(db_session, TEST_USER_ID, "a@correo.com", "Ana", "Perez")
     assert first.user_id == second.user_id == TEST_USER_ID
+    assert first.first_name == "Ana"
     assert db_session.query(type(first)).count() == 1
-    third = upsert_user(db_session, TEST_USER_ID, "b@correo.com")
+    third = upsert_user(db_session, TEST_USER_ID, "b@correo.com", "Rupaul", "Charles")
     assert third.email == "b@correo.com"
+    assert third.first_name == "Rupaul"
     assert db_session.query(type(first)).count() == 1
 
 

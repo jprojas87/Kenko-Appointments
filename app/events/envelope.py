@@ -58,6 +58,7 @@ def appointment_scheduled_detail(
     context: AppointmentContext,
     user_id: UUID,
     email: str,
+    first_name: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,
@@ -68,6 +69,7 @@ def appointment_scheduled_detail(
         "data": {
             "userId": str(user_id),
             "email": email,
+            "firstName": first_name,
             "scheduledAt": timestamp,
             "appointment": _appointment_data(context),
         },
@@ -79,6 +81,7 @@ def appointment_rescheduled_detail(
     new_context: AppointmentContext,
     user_id: UUID,
     email: str,
+    first_name: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,
@@ -89,6 +92,7 @@ def appointment_rescheduled_detail(
         "data": {
             "userId": str(user_id),
             "email": email,
+            "firstName": first_name,
             "rescheduledAt": timestamp,
             "previousAppointment": _appointment_data(previous_context),
             "appointment": _appointment_data(new_context),
@@ -100,6 +104,7 @@ def appointment_cancelled_detail(
     context: AppointmentContext,
     user_id: UUID,
     email: str,
+    first_name: str | None,
     occurred_at: datetime | None = None,
     correlation_id: str | None = None,
     event_id: UUID | None = None,
@@ -110,6 +115,7 @@ def appointment_cancelled_detail(
         "data": {
             "userId": str(user_id),
             "email": email,
+            "firstName": first_name,
             "cancelledAt": timestamp,
             "appointment": _appointment_data(context),
         },

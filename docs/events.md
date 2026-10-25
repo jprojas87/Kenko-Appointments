@@ -16,8 +16,9 @@ Notifications, solo publica al bus existente.
   `eventVersion` es la cadena `"1"`.
 - `occurredAt`, `scheduledAt`, `rescheduledAt` y `cancelledAt` son ISO-8601 UTC con sufijo `Z`.
 - `correlationId` toma `X-Correlation-Id` o se genera; el mismo ID aparece en logs y header de respuesta.
-- `email` sale siempre de la tabla `users` (poblada desde `ProfileCreated`), nunca del JWT
-  y nunca es `null`. Si el usuario no existe en `users`, la operación se rechaza con `403`.
+- `email` y `firstName` salen siempre de la tabla `users` (poblada desde `ProfileCreated`:
+  `contact.email` y `person.firstName`), nunca del JWT. Si el usuario no existe en `users`,
+  la operación se rechaza con `403`.
 - Los eventos llevan la cita completa; Notifications no necesita consultar Appointments.
 - `appointment.date` es `YYYY-MM-DD`; `startTime` y `endTime` son `HH:MM`, interpretados en `America/Bogota`.
 - Se entrega al menos una vez. Notifications debe deduplicar con `metadata.eventId`.
@@ -30,8 +31,9 @@ Notifications, solo publica al bus existente.
 - DLQ: `kenko-dev-appointments-profile-dlq`.
 - Regla: `kenko-dev-profile-to-appointments`.
 - El servicio `appointments-worker` (`python -m app.workers.profile_consumer`) lee la cola
-  con long-polling de 20 s, extrae `detail.data.userId` (UUID v7) y
-  `detail.data.contact.email`, y hace upsert idempotente en `users`.
+  con long-polling de 20 s, extrae `detail.data.userId` (UUID v7),
+  `detail.data.contact.email` y `detail.data.person.firstName/lastName`,
+  y hace upsert idempotente en `users`.
 - Solo se escucha `ProfileCreated` de `source=kenko.profile`; otros eventos se ignoran.
 - Se hace `DELETE` solo tras guardar en BD. Fallos transitorios se dejan para
   reintento/DLQ; mensajes inválidos se descartan con log del `MessageId`.

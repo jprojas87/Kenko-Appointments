@@ -64,6 +64,7 @@ def _assert_event_contract(
     detail_type: str,
     timestamp_key: str,
     email: str | None,
+    first_name: str | None = "Usuario",
     correlation_id: str = CORRELATION_ID,
 ) -> None:
     assert set(event) == {"source", "detail-type", "detail"}
@@ -81,12 +82,14 @@ def _assert_event_contract(
     assert data["userId"] == str(TEST_USER_ID)
     assert UUID(data["userId"]).version == 7
     assert "email" in data and data["email"] == email
+    assert "firstName" in data and data["firstName"] == first_name
     assert data[timestamp_key] == metadata["occurredAt"]
     _assert_timestamp(data[timestamp_key])
     if detail_type == "AppointmentRescheduled":
         assert set(data) == {
             "userId",
             "email",
+            "firstName",
             "rescheduledAt",
             "previousAppointment",
             "appointment",
@@ -94,7 +97,7 @@ def _assert_event_contract(
         _assert_appointment_contract(data["previousAppointment"])
         _assert_appointment_contract(data["appointment"])
     else:
-        assert set(data) == {"userId", "email", timestamp_key, "appointment"}
+        assert set(data) == {"userId", "email", "firstName", timestamp_key, "appointment"}
         _assert_appointment_contract(data["appointment"])
     assert "patientId" not in json.dumps(event)
 
@@ -207,7 +210,7 @@ def test_email_comes_from_users_table_not_token(
     records,
     fake_publisher,
 ) -> None:
-    records["user"](email="desde-profile@correo.com")
+    records["user"](email="desde-profile@correo.com", first_name="Rupaul")
     center = records["center"]("Sede email profile")
     physician = records["physician"](center)
     appointment = records["appointment"](
@@ -228,6 +231,7 @@ def test_email_comes_from_users_table_not_token(
         "AppointmentScheduled",
         "scheduledAt",
         "desde-profile@correo.com",
+        "Rupaul",
     )
 
 

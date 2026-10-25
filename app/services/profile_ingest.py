@@ -14,8 +14,8 @@ PROFILE_SOURCE = "kenko.profile"
 PROFILE_DETAIL_TYPE = "ProfileCreated"
 
 
-def parse_profile_created(message_body: str) -> tuple[UUID, str] | None:
-    """Devuelve (user_id, email) si el body es un ProfileCreated válido.
+def parse_profile_created(message_body: str) -> tuple[UUID, str, str, str | None] | None:
+    """Devuelve (user_id, email, first_name, last_name) si es ProfileCreated válido.
 
     Devuelve None si no es un evento ProfileCreated (para ignorarlo sin error).
     Lanza ValueError si es ProfileCreated pero trae datos inválidos.
@@ -69,22 +69,45 @@ def parse_profile_created(message_body: str) -> tuple[UUID, str] | None:
     if not isinstance(email, str) or "@" not in email:
         raise ValueError("ProfileCreated sin contact.email válido")
 
-    return user_id, email.strip()
+    person = data.get("person")
+    if not isinstance(person, dict):
+        raise ValueError("ProfileCreated sin data.person")
+    first_name = person.get("firstName")
+    if not isinstance(first_name, str) or not first_name.strip():
+        raise ValueError("ProfileCreated sin person.firstName válido")
+    last_name = person.get("lastName")
+    if last_name is not None and not isinstance(last_name, str):
+        raise ValueError("ProfileCreated con person.lastName inválido")
+
+    return user_id, email.strip(), first_name.strip(), last_name.strip() if last_name else None
 
 
-def upsert_user(database_session: Session, user_id: UUID, email: str) -> User:
-    """Inserta o actualiza el email. Idempotente: reprocesar no duplica."""
+def upsert_user(
+    database_session: Session,
+    user_id: UUID,
+    email: str,
+    first_name: str | None = None,
+    last_name: str | None = None,
+) -> User:
+    """Inserta o actualiza email y nombre. Idempotente: reprocesar no duplica."""
     existing = database_session.get(User, user_id)
     if existing is None:
-        user = User(user_id=user_id, email=email)
+        user = User(user_id=user_id, email=email, first_name=first_name, last_name=last_name)
         database_session.add(user)
         database_session.commit()
         logger.info("Usuario creado desde ProfileCreated; userId=%s", user_id)
         return user
+    updated = False
     if existing.email != email:
         existing.email = email
-        database_session.commit()
-        logger.info("Email actualizado desde ProfileCreated; userId=%s", user_id)
-    else:
-        database_session.commit()
+        updated = True
+    if first_name is not None and existing.first_name != first_name:
+        existing.first_name = first_name
+        updated = True
+    if last_name is not None and existing.last_name != last_name:
+        existing.last_name = last_name
+        updated = True
+    database_session.commit()
+    if updated:
+        logger.info("Usuario actualizado desde ProfileCreated; userId=%s", user_id)
     return existing

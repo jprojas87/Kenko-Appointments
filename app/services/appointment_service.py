@@ -20,7 +20,7 @@ from app.schemas import (
     PaginatedAppointments,
     PhysicianSummary,
 )
-from app.services.user_service import require_user_email
+from app.services.user_service import require_user
 
 
 def _appointment_response(
@@ -134,7 +134,9 @@ def schedule_appointment(
     user_id: UUID,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
-    email = require_user_email(database_session, user_id)
+    user = require_user(database_session, user_id)
+    email = user.email
+    first_name = user.first_name
     context = _load_appointment_context(database_session, appointment_id)
     if context is None:
         raise NotFoundError("Cita no encontrada")
@@ -147,7 +149,9 @@ def schedule_appointment(
     if not is_within_max_days_ahead(appointment.date):
         raise BusinessRuleError("La cita supera el máximo de días de antelación")
 
-    detail = appointment_scheduled_detail(context, user_id=user_id, email=email)
+    detail = appointment_scheduled_detail(
+        context, user_id=user_id, email=email, first_name=first_name
+    )
     response = _appointment_response(*context)
     result = database_session.execute(
         update(Appointment)
@@ -178,7 +182,9 @@ def cancel_appointment(
     user_id: UUID,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
-    email = require_user_email(database_session, user_id)
+    user = require_user(database_session, user_id)
+    email = user.email
+    first_name = user.first_name
     context = _load_appointment_context(database_session, appointment_id)
     if context is None or context[0].user_id != user_id:
         raise NotFoundError("Cita no encontrada")
@@ -187,7 +193,9 @@ def cancel_appointment(
     if not has_minimum_notice(appointment.date, appointment.start_time):
         raise BusinessRuleError("La cancelación requiere la anticipación mínima")
 
-    detail = appointment_cancelled_detail(context, user_id=user_id, email=email)
+    detail = appointment_cancelled_detail(
+        context, user_id=user_id, email=email, first_name=first_name
+    )
     response = _appointment_response(*context)
     result = database_session.execute(
         update(Appointment)
@@ -214,7 +222,9 @@ def reschedule_appointment(
     user_id: UUID,
     publisher: EventPublisher,
 ) -> AppointmentResponse:
-    email = require_user_email(database_session, user_id)
+    user = require_user(database_session, user_id)
+    email = user.email
+    first_name = user.first_name
     if appointment_id == new_appointment_id:
         raise BusinessRuleError("La nueva cita debe ser diferente a la actual")
 
@@ -256,6 +266,7 @@ def reschedule_appointment(
         new_context,
         user_id=user_id,
         email=email,
+        first_name=first_name,
     )
     response = _appointment_response(*new_context)
     release_result = database_session.execute(

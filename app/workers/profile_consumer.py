@@ -57,8 +57,8 @@ def process_body(body: str, database_session: Session) -> bool:
     parsed = parse_profile_created(body)
     if parsed is None:
         return True
-    user_id, email = parsed
-    upsert_user(database_session, user_id, email)
+    user_id, email, first_name, last_name = parsed
+    upsert_user(database_session, user_id, email, first_name, last_name)
     return True
 
 

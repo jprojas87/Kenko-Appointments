@@ -16,3 +16,10 @@ def require_user_email(database_session: Session, user_id: UUID) -> str:
     if email is None:
         raise ForbiddenError("Usuario no registrado")
     return email
+
+
+def require_user(database_session: Session, user_id: UUID) -> User:
+    user = database_session.get(User, user_id)
+    if user is None:
+        raise ForbiddenError("Usuario no registrado")
+    return user

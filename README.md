@@ -193,7 +193,7 @@ Para AWS, configura credenciales mediante la cadena estándar de AWS (rol de eje
 
 ## Eventos y worker de profile
 
-Appointments publica únicamente al bus de EventBridge (`kenko-dev-bus` en dev) y consume `ProfileCreated` con el servicio separado `appointments-worker` (`python -m app.workers.profile_consumer`), que puebla la tabla `users` con `userId` + `email`. `EVENT_PUBLISHER=log` es el valor predeterminado y permite desarrollar sin AWS; `eventbridge` activa el publicador boto3. EventBridge usa `Source=kenko.appointments`, `DetailType` PascalCase y el detalle `metadata` + `data`. El `email` de los eventos sale siempre de `users`, nunca del JWT ni como `null`. El contrato, ejemplos completos e infraestructura están en [`docs/events.md`](docs/events.md).
+Appointments publica únicamente al bus de EventBridge (`kenko-dev-bus` en dev) y consume `ProfileCreated` con el servicio separado `appointments-worker` (`python -m app.workers.profile_consumer`), que puebla la tabla `users` con `userId` + `email` + nombre. `EVENT_PUBLISHER=log` es el valor predeterminado y permite desarrollar sin AWS; `eventbridge` activa el publicador boto3. EventBridge usa `Source=kenko.appointments`, `DetailType` PascalCase y el detalle `metadata` + `data`. El `email` y el `firstName` de los eventos salen siempre de `users`, nunca del JWT. El contrato, ejemplos completos e infraestructura están en [`docs/events.md`](docs/events.md).
 
 La publicación sucede después del `commit`, con hasta tres intentos. Si el commit funciona y la publicación falla, la operación de negocio permanece confirmada, pero el evento se pierde. La mejora futura para cerrar esa ventana es el patrón Outbox.
 
@@ -217,7 +217,7 @@ uv run ruff format --check .
 - `date_from` posterior a `date_to` produce `422`.
 - El seed usa UUID v5 deterministas para que sea idempotente; los UUID operativos usan v7.
 - Todo endpoint autenticado con `sub` desconocido (sin `ProfileCreated` previo) responde `403`.
-- El `email` de los eventos sale de `users`; nunca es `null`.
+- El `email` y el `firstName` de los eventos salen de `users` (nombre desde `person.firstName` de profile).
 - Los UUID entrantes (`sub`, `userId` de profile) deben ser v7; si no, se rechazan.
 
 ## Pendientes

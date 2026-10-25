@@ -118,8 +118,13 @@ def token_factory():
 
 @pytest.fixture
 def records(db_session: Session):
-    def make_user(user_id: UUID = TEST_USER_ID, email: str = TEST_USER_EMAIL) -> User:
-        user = User(user_id=user_id, email=email)
+    def make_user(
+        user_id: UUID = TEST_USER_ID,
+        email: str = TEST_USER_EMAIL,
+        first_name: str | None = "Usuario",
+        last_name: str | None = "De Prueba",
+    ) -> User:
+        user = User(user_id=user_id, email=email, first_name=first_name, last_name=last_name)
         db_session.add(user)
         db_session.commit()
         return user
