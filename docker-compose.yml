@@ -33,6 +33,7 @@ services:
       - kenko-net
 
   appointments-worker:
+    profiles: ["prod-like"]
     build:
       context: .
       dockerfile: Dockerfile

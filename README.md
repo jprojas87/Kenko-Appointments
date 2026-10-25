@@ -28,13 +28,31 @@ La red externa `kenko-net` conecta Appointments con los otros microservicios. Se
 Comandos útiles:
 
 ```bash
-docker compose logs -f appointments-api appointments-worker
+docker compose logs -f appointments-api
 docker compose exec appointments-api python -m seeds.run
 docker compose down
 docker compose down -v  # elimina también el volumen y todos los datos locales
 ```
 
+El worker solo arranca con el perfil `prod-like` (`docker compose --profile prod-like up -d appointments-worker`); por defecto `docker compose up` levanta únicamente base y API.
+
 La base de datos está disponible en el host en `localhost:5433`; dentro de Compose, la API se conecta a `appointments-db:5432`. La API escucha en el puerto `8002`.
+
+## Modo local (recomendado)
+
+Solo Postgres corre en Docker; la API y el worker corren en tu máquina con el venv. El worker usa tus credenciales AWS de `~/.aws` (cadena estándar del SDK); nunca pongas claves AWS en el `.env`.
+
+```bash
+docker compose up -d appointments-db
+
+# Terminal 1 — API:
+DATABASE_URL='postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db' \
+  uv run uvicorn app.main:app --reload --port 8002
+
+# Terminal 2 — worker de ProfileCreated:
+DATABASE_URL='postgresql+psycopg://appointments:appointments@localhost:5433/appointments_db' \
+  uv run python -m app.workers.profile_consumer
+```
 
 Para ejecutar la API desde WSL en el host, con PostgreSQL de Compose activo:
 
