@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_secret: str = "change-me-dev-only"
     jwt_public_key: str = ""
-    jwt_issuer: str = "kenko-auth"
+    jwt_issuer: str = "kenko.auth"
     jwt_audience: str = "kenko-api"
     jwt_leeway_seconds: int = 120
     min_hours_before_cancel_or_reschedule: int = 24

@@ -20,7 +20,7 @@ def main() -> None:
     now = datetime.now(UTC)
     claims: dict[str, str | datetime | int] = {
         "sub": str(arguments.user_id),
-        "iss": settings.jwt_issuer or "kenko-auth",
+        "iss": settings.jwt_issuer or "kenko.auth",
         "aud": settings.jwt_audience or "kenko-api",
         "iat": now,
         "exp": now + timedelta(minutes=arguments.minutes),

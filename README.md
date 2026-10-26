@@ -73,7 +73,7 @@ uv run python -m scripts.make_token \
   --minutes 15
 ```
 
-El token contiene `sub` (userId UUIDv7), `iss=kenko-auth`, `aud=kenko-api`, `iat`, `exp`, `jti` y `sid`. Appointments exige los cuatro (`alg==HS256`, firma, `iss`, `aud`, `exp`) y que `sub` sea UUID v7; sin eso responde `401` genérico. Para probar un token vencido, usa `--minutes -1`. El refresh token opaco de Auth nunca debe enviarse a Appointments.
+El token contiene `sub` (userId UUIDv7), `iss=kenko.auth`, `aud=kenko-api`, `iat`, `exp`, `jti` y `sid`. Appointments exige los cuatro (`alg==HS256`, firma, `iss`, `aud`, `exp`) y que `sub` sea UUID v7; sin eso responde `401` genérico. Para probar un token vencido, usa `--minutes -1`. El refresh token opaco de Auth nunca debe enviarse a Appointments.
 
 ## API REST
 
@@ -174,7 +174,7 @@ La configuración se carga desde `.env` o el entorno del proceso. No versionar `
 | `JWT_ALGORITHM` | `HS256` | Solo se acepta `HS256`. |
 | `JWT_SECRET` | `change-me-dev-only` | Clave HS256 compartida con kenko-auth; reemplazar fuera de desarrollo. |
 | `JWT_PUBLIC_KEY` | vacío | Sin uso (reservado para la futura migración a ES256/JWKS). |
-| `JWT_ISSUER` | `kenko-auth` | Emisor exigido al validar. |
+| `JWT_ISSUER` | `kenko.auth` | Emisor exigido al validar (lo que emite Auth). |
 | `JWT_AUDIENCE` | `kenko-api` | Audiencia exigida al validar. |
 | `JWT_LEEWAY_SECONDS` | `120` | Tolerancia de reloj entre Auth y Appointments, aplicada a `exp`/`iat`. |
 | `MIN_HOURS_BEFORE_CANCEL_OR_RESCHEDULE` | `24` | Anticipación mínima para cancelar/reagendar. |

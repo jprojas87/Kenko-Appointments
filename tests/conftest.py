@@ -104,7 +104,7 @@ def token_factory():
         now = datetime.now(UTC)
         claims: dict[str, str | datetime] = {
             "sub": str(user_id),
-            "iss": issuer or settings.jwt_issuer or "kenko-auth",
+            "iss": issuer or settings.jwt_issuer or "kenko.auth",
             "aud": audience or settings.jwt_audience or "kenko-api",
             "iat": now,
             "exp": now + timedelta(minutes=expires_in_minutes),
