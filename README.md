@@ -2,6 +2,54 @@
 
 Microservicio backend de citas de la sucursal virtual de Kenko. Permite consultar disponibilidad, agendar, cancelar y reagendar citas, consultar el catálogo médico y publicar eventos para Notifications. Appointments opera con su propia base PostgreSQL, consume `ProfileCreated` de profile con un worker SQS separado y no llama a otros servicios por HTTP.
 
+## Guía rápida de comandos
+
+Requiere una sola vez por terminal: las variables ya van en `~/.bashrc` (ver `.env.example`, bloque modo local).
+
+```bash
+# 1. Base de datos
+docker compose up -d appointments-db
+
+# 2. API (puerto 8002, responde pedidos y manda eventos)
+uv run uvicorn app.main:app --reload --port 8002
+
+# 3. Worker (consume ProfileCreated de la cola de profile; terminal aparte)
+uv run python -m app.workers.profile_consumer
+
+# 4. Datos de prueba (centros, doctores, citas libres; repetible sin duplicar)
+uv run python -m seeds.run
+```
+
+```bash
+# Salud
+curl http://localhost:8002/health
+
+# Token de prueba (reemplaza USER_ID por uno de la tabla users)
+TOKEN="$(uv run python -m scripts.make_token --user-id USER_ID)"
+
+# Citas disponibles
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8002/api/v1/appointments/available?page_size=20'
+
+# Mis citas (solo futuras; agrega ?include_past=true para ver también pasadas)
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8002/api/v1/appointments/me'
+
+# Agendar
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8002/api/v1/appointments/UUID_CITA/schedule'
+
+# Reagendar
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"newAppointmentId":"UUID_NUEVA_CITA"}' \
+  'http://localhost:8002/api/v1/appointments/UUID_CITA/reschedule'
+
+# Cancelar
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8002/api/v1/appointments/UUID_CITA/cancel'
+```
+
 ## Requisitos
 
 - Python 3.12 y [uv](https://docs.astral.sh/uv/).
