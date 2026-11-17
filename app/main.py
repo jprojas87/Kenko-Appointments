@@ -2,8 +2,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
+from app.config import settings
 from app.database import create_tables
 from app.errors import register_error_handlers
 from app.logging_config import add_correlation_id_middleware, configure_logging
@@ -20,6 +22,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 configure_logging()
 app = FastAPI(title="Kenko Appointments", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Correlation-Id"],
+    expose_headers=["X-Correlation-Id"],
+)
 add_correlation_id_middleware(app)
 register_error_handlers(app)
 

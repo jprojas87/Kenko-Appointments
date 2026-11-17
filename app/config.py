@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     sqs_wait_time_seconds: int = 20
     sqs_max_messages: int = 10
     sqs_visibility_timeout: int = 30
+    frontend_origins: str = (
+        "http://localhost:5000,http://localhost:5500,http://localhost:5001,"
+        "http://localhost:8080,http://localhost:8001,http://localhost:8002,"
+        "http://localhost:3000,http://localhost:3001"
+    )
+    cors_allow_credentials: bool = True
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.frontend_origins.split(",") if o.strip()]
 
 
 settings = Settings()
