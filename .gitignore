@@ -4,3 +4,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.py[cod]
+# Terraform — nunca subir binarios ni estado local
+terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json

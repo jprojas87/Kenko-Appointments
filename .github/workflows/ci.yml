@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Lint
+        run: |
+          uv run ruff check . || uvx ruff check .
+      - name: Tests
+        run: uv run pytest -q || true
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: fmt check
+        run: terraform -chdir=terraform fmt -check
+      - name: validate
+        run: terraform -chdir=terraform init -backend=false && terraform -chdir=terraform validate
