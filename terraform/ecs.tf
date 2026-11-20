@@ -147,7 +147,13 @@ resource "aws_ecs_service" "api" {
     rollback = true
   }
 
-  depends_on = [aws_vpc_security_group_ingress_rule.appointments_8002]
+  depends_on = [aws_vpc_security_group_ingress_rule.appointments_8002, aws_lb_listener.api_port]
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.api.arn
+    container_name   = "api"
+    container_port   = 8002
+  }
 
   tags = local.common_tags
 }
